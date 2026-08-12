@@ -1,0 +1,6 @@
+{
+  "name": "LuminaSQL",
+  "description": "AI-Powered Database Assistant & Natural Language SQL Interface with real schema analysis, execution, and Gemini intelligence.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
