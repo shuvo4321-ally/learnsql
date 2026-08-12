@@ -91,12 +91,13 @@ export interface ChatMessage {
 }
 
 export interface AISettings {
-  model: 'gemini-3.6-flash' | 'gemini-3.5-pro' | 'gemini-3.5-flash' | string;
+  model: 'gemini-2.5-flash' | 'gemini-3.5-pro' | 'gemini-3.5-flash' | string;
   responseStyle: 'beginner' | 'developer' | 'analyst';
   autoCorrection: boolean;
   showSQL: boolean;
   showExplanation: boolean;
   defaultChart: 'auto' | 'bar' | 'line' | 'pie' | 'table';
+  geminiApiKey?: string;
 }
 
 export interface SampleDatabase {

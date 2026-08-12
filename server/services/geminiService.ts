@@ -2,24 +2,20 @@ import { GoogleGenAI, Type } from '@google/genai';
 import { AISettings, DatabaseSchema } from '../../src/types';
 
 // Shared Gemini Client
-let aiClient: GoogleGenAI | null = null;
-
-function getGeminiClient(): GoogleGenAI {
-  if (!aiClient) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      console.warn('GEMINI_API_KEY environment variable is not defined.');
-    }
-    aiClient = new GoogleGenAI({
-      apiKey: apiKey || '',
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build'
-        }
-      }
-    });
+// We no longer strictly cache a single instance because we need to support dynamic keys per-request
+function getGeminiClient(customApiKey?: string): GoogleGenAI {
+  const apiKey = customApiKey || process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.warn('GEMINI_API_KEY environment variable is not defined and no custom key provided.');
   }
-  return aiClient;
+  return new GoogleGenAI({
+    apiKey: apiKey || '',
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build'
+      }
+    }
+  });
 }
 
 function formatSqlString(sql: string): string {
@@ -106,9 +102,9 @@ export class GeminiService {
     userQuery: string,
     schema: DatabaseSchema,
     conversationHistory: any[] = [],
-    settings?: Partial<AISettings>
+    settings?: Partial<AISettings & { geminiApiKey?: string }>
   ): Promise<SQLGenerationOutput> {
-    const ai = getGeminiClient();
+    const ai = getGeminiClient(settings?.geminiApiKey);
 
     // Format schema into clean string
     const schemaFormatted = schema.tables
@@ -164,7 +160,7 @@ Generate the appropriate SQL query and metadata strictly as JSON.`;
 
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: settings?.model || 'gemini-2.5-flash',
         contents: prompt,
         config: {
           systemInstruction,
@@ -231,9 +227,10 @@ Generate the appropriate SQL query and metadata strictly as JSON.`;
     failedSql: string,
     errorMessage: string,
     userQuery: string,
-    schema: DatabaseSchema
+    schema: DatabaseSchema,
+    settings?: Partial<AISettings & { geminiApiKey?: string }>
   ): Promise<SQLGenerationOutput> {
-    const ai = getGeminiClient();
+    const ai = getGeminiClient(settings?.geminiApiKey);
 
     const schemaFormatted = schema.tables
       .map((t) => `${t.name}: ${t.columns.map((c) => `${c.name} (${c.type})`).join(', ')}`)
@@ -257,7 +254,7 @@ Correct the SQL query to fix the database error while preserving user intent. Re
 
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: settings?.model || 'gemini-2.5-flash',
         contents: prompt,
         config: {
           systemInstruction: 'You are an expert SQL debugger. Correct the query to fix the database execution error based on the exact schema provided.',
@@ -297,9 +294,9 @@ Correct the SQL query to fix the database error while preserving user intent. Re
     sql: string,
     queryResult: { columns: string[]; rows: any[]; executionTimeMs: number },
     schema: DatabaseSchema,
-    settings?: Partial<AISettings>
+    settings?: Partial<AISettings & { geminiApiKey?: string }>
   ): Promise<{ answer: string; keyInsights: string[]; summaryMetric?: { label: string; value: string | number } }> {
-    const ai = getGeminiClient();
+    const ai = getGeminiClient(settings?.geminiApiKey);
 
     // Summarize rows without sending massive payload
     const rowCount = queryResult.rows.length;
@@ -320,7 +317,7 @@ IMPORTANT:
 
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: settings?.model || 'gemini-2.5-flash',
         contents: prompt,
         config: {
           systemInstruction: 'You are LSQL AI Assistant. Interpret database execution results accurately and succinctly in natural language.',

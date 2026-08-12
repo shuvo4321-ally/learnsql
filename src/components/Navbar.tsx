@@ -1,5 +1,5 @@
 import React from 'react';
-import { FolderOpen, Table, History, Plus } from 'lucide-react';
+import { FolderOpen, Table, History, Plus, Settings } from 'lucide-react';
 import { User as FirebaseUser } from 'firebase/auth';
 import { DatabaseSchema } from '../types';
 
@@ -8,6 +8,7 @@ interface NavbarProps {
   user: FirebaseUser | null;
   onOpenDbModal: () => void;
   onOpenSchemaBrowser: () => void;
+  onOpenSettings: () => void;
   onOpenHistory: () => void;
   onNewChat: () => void;
 }
@@ -17,6 +18,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   user,
   onOpenDbModal,
   onOpenSchemaBrowser,
+  onOpenSettings,
   onOpenHistory,
   onNewChat
 }) => {
@@ -102,6 +104,15 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Table className="w-4 h-4" />
             </button>
           )}
+
+          <button
+            onClick={onOpenSettings}
+            className="p-2 rounded border border-[#222222] bg-[#111111] text-[#888888] hover:text-[#c5a059] hover:border-[#333333] transition-colors"
+            title="Settings & API Key"
+            aria-label="Open Settings"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
         </div>
 
       </div>

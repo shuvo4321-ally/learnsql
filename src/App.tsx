@@ -7,6 +7,7 @@ import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { Navbar } from './components/Navbar';
 import { DatabaseModal } from './components/DatabaseModal';
 import { SchemaBrowser } from './components/SchemaBrowser';
+import { SettingsModal } from './components/SettingsModal';
 import { ConfirmationModal } from './components/ConfirmationModal';
 import { ChatInterface } from './components/ChatInterface';
 import { HistoryDrawer } from './components/HistorySidebar';
@@ -45,19 +46,30 @@ export default function App() {
   const [activeConvId, setActiveConvId] = useState<string>(generateUniqueId('session'));
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState<boolean>(false);
 
-  // Settings state (Strictly non-sensitive preferences)
-  const [settings, setSettings] = useState<AISettings>({
-    model: 'gemini-3.6-flash',
-    responseStyle: 'beginner',
-    autoCorrection: true,
-    showSQL: true,
-    showExplanation: true,
-    defaultChart: 'auto'
+  // Settings state
+  const [settings, setSettings] = useState<AISettings>(() => {
+    const saved = localStorage.getItem('lsql_ai_settings');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.warn('Failed to parse settings', e);
+      }
+    }
+    return {
+      model: 'gemini-2.5-flash',
+      responseStyle: 'beginner',
+      autoCorrection: true,
+      showSQL: true,
+      showExplanation: true,
+      defaultChart: 'auto'
+    };
   });
 
   // Modals state
   const [isDbModalOpen, setIsDbModalOpen] = useState<boolean>(false);
   const [isSchemaBrowserOpen, setIsSchemaBrowserOpen] = useState<boolean>(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState<boolean>(false);
   
   // Confirmation state for destructive queries
   const [pendingDestructiveMsg, setPendingDestructiveMsg] = useState<{
@@ -273,7 +285,8 @@ export default function App() {
             failedSql: generatedAI.sql,
             errorMessage: queryResult.error,
             userQuery,
-            schema: currentSchema
+            schema: currentSchema,
+            settings
           })
         });
 
@@ -398,6 +411,7 @@ export default function App() {
         user={user}
         onOpenDbModal={() => setIsDbModalOpen(true)}
         onOpenSchemaBrowser={() => setIsSchemaBrowserOpen(true)}
+        onOpenSettings={() => setIsSettingsModalOpen(true)}
         onOpenHistory={() => setIsHistoryDrawerOpen(true)}
         onNewChat={handleNewConversation}
       />
@@ -446,6 +460,14 @@ export default function App() {
         isOpen={isSchemaBrowserOpen}
         onClose={() => setIsSchemaBrowserOpen(false)}
         schema={currentSchema}
+      />
+
+      {/* Preferences Modal */}
+      <SettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        settings={settings}
+        onUpdateSettings={setSettings}
       />
 
       {/* Destructive Query Confirmation Modal */}

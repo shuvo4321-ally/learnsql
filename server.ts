@@ -33,8 +33,8 @@ async function startServer() {
 
   app.post('/api/ai/correct-sql', async (req, res) => {
     try {
-      const { failedSql, errorMessage, userQuery, schema } = req.body;
-      const result = await GeminiService.correctSQL(failedSql, errorMessage, userQuery, schema);
+      const { failedSql, errorMessage, userQuery, schema, settings } = req.body;
+      const result = await GeminiService.correctSQL(failedSql, errorMessage, userQuery, schema, settings);
       res.json(result);
     } catch (err: any) {
       console.error('API correct-sql error:', err);
