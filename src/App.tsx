@@ -13,6 +13,7 @@ import { ChatInterface } from './components/ChatInterface';
 import { HistoryDrawer } from './components/HistorySidebar';
 import { SAMPLE_DATABASES } from './services/sampleData';
 import { SQLEngine } from './services/sqlEngine';
+import { saveActiveDatabase, getActiveDatabase, PersistedDatabase } from './services/dbStore';
 import { AISettings, ChatMessage, DatabaseSchema, SampleDatabase, QueryResult } from './types';
 import {
   auth,
@@ -105,33 +106,49 @@ export default function App() {
     const unsubscribeConvs = subscribeToUserConversations(user.uid, (convList) => {
       setConversations(convList);
       
-      // Auto-load most recent session if current messages array is empty
-      if (messagesRef.current.length === 0 && convList.length > 0) {
+      // Auto-load most recent session if current messages array is empty and no db is loaded yet
+      if (messagesRef.current.length === 0 && convList.length > 0 && !currentSchema) {
         const latest = convList[0];
         setActiveConvId(latest.id);
         setMessages(latest.messages || []);
-
-        const matchedSample = SAMPLE_DATABASES.find(
-          (d) => d.id === latest.activeSampleDbId || d.name === latest.dbName
-        ) || SAMPLE_DATABASES[0];
-
-        setActiveSampleDb(matchedSample);
-        const schema = SQLEngine.loadSQLDump(matchedSample.name, matchedSample.sqlDump);
-        setCurrentSchema(schema);
       }
     });
 
     return () => unsubscribeConvs();
   }, [user]);
 
-  // 3. Initialize default sample database on first mount if schema is empty
+  // 3. Initialize persisted database on first mount
   useEffect(() => {
-    if (!currentSchema) {
-      const defaultSample = SAMPLE_DATABASES[0];
-      setActiveSampleDb(defaultSample);
-      const schema = SQLEngine.loadSQLDump(defaultSample.name, defaultSample.sqlDump);
-      setCurrentSchema(schema);
-    }
+    const initDb = async () => {
+      const persisted = await getActiveDatabase();
+      if (persisted) {
+        try {
+          if (persisted.type === 'sample' && persisted.sampleId) {
+            const sample = SAMPLE_DATABASES.find(s => s.id === persisted.sampleId) || SAMPLE_DATABASES[0];
+            setActiveSampleDb(sample);
+            setCurrentSchema(SQLEngine.loadSQLDump(sample.name, sample.sqlDump));
+          } else if (persisted.type === 'custom_csv' && persisted.filename && persisted.content) {
+            setActiveSampleDb(undefined);
+            setCurrentSchema(SQLEngine.loadCSV(persisted.filename, persisted.content));
+          } else if (persisted.type === 'custom_sql' && persisted.filename && persisted.content) {
+            setActiveSampleDb(undefined);
+            setCurrentSchema(SQLEngine.loadSQLDump(persisted.filename, persisted.content));
+          } else {
+            throw new Error("Invalid persisted DB");
+          }
+        } catch (e) {
+          console.error("Failed to load persisted database, falling back", e);
+          const defaultSample = SAMPLE_DATABASES[0];
+          setActiveSampleDb(defaultSample);
+          setCurrentSchema(SQLEngine.loadSQLDump(defaultSample.name, defaultSample.sqlDump));
+        }
+      } else if (!currentSchema) {
+        const defaultSample = SAMPLE_DATABASES[0];
+        setActiveSampleDb(defaultSample);
+        setCurrentSchema(SQLEngine.loadSQLDump(defaultSample.name, defaultSample.sqlDump));
+      }
+    };
+    initDb();
   }, []);
 
   // Auto-save messages to Firestore whenever messages state updates
@@ -156,19 +173,25 @@ export default function App() {
     setCurrentSchema(schema);
     setMessages([]);
     setActiveConvId(generateUniqueId('session'));
+    saveActiveDatabase({ type: 'sample', sampleId: sample.id });
   };
 
   const handleSelectSavedConversation = (conv: SavedConversation) => {
     setActiveConvId(conv.id);
     setMessages(conv.messages || []);
 
+    // We shouldn't necessarily override the active schema here if they have a custom one loaded.
+    // However, if we know it was a sample database, we can try to restore it.
     const matchedSample = SAMPLE_DATABASES.find(
       (d) => d.id === conv.activeSampleDbId || d.name === conv.dbName
-    ) || SAMPLE_DATABASES[0];
-
-    setActiveSampleDb(matchedSample);
-    const schema = SQLEngine.loadSQLDump(matchedSample.name, matchedSample.sqlDump);
-    setCurrentSchema(schema);
+    );
+    
+    if (matchedSample) {
+      setActiveSampleDb(matchedSample);
+      const schema = SQLEngine.loadSQLDump(matchedSample.name, matchedSample.sqlDump);
+      setCurrentSchema(schema);
+      saveActiveDatabase({ type: 'sample', sampleId: matchedSample.id });
+    }
   };
 
   const handleNewConversation = () => {
@@ -190,6 +213,7 @@ export default function App() {
     setCurrentSchema(schema);
     setMessages([]);
     setActiveConvId(generateUniqueId('session'));
+    saveActiveDatabase({ type: 'custom_sql', filename, content });
   };
 
   const handleUploadCsvFile = (filename: string, content: string) => {
@@ -198,6 +222,7 @@ export default function App() {
     setCurrentSchema(schema);
     setMessages([]);
     setActiveConvId(generateUniqueId('session'));
+    saveActiveDatabase({ type: 'custom_csv', filename, content });
   };
 
   const handleSendMessage = async (userQuery: string) => {

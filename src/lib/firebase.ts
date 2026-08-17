@@ -6,6 +6,8 @@ import {
   signInAnonymously,
   signOut as firebaseSignOut,
   onAuthStateChanged,
+  setPersistence,
+  browserLocalPersistence,
   User
 } from 'firebase/auth';
 import {
@@ -33,6 +35,9 @@ export const db = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestore
 
 // Initialize Auth
 export const auth = getAuth(app);
+setPersistence(auth, browserLocalPersistence).catch((err) => {
+  console.error("Auth persistence error:", err);
+});
 export const googleProvider = new GoogleAuthProvider();
 
 export interface SavedConversation {
